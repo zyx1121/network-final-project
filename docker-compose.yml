@@ -1,0 +1,31 @@
+services:
+  client:
+    build: ./client
+    container_name: client
+    tty: true
+    stdin_open: true
+    networks:
+      net:
+        ipv4_address: 192.168.2.2
+  proxy:
+    build: ./proxy
+    container_name: proxy
+    tty: true
+    stdin_open: true
+    networks:
+      net:
+        ipv4_address: 192.168.2.100
+  server:
+    build: ./server
+    container_name: server
+    tty: true
+    stdin_open: true
+    networks:
+      net:
+        ipv4_address: 192.168.2.3
+networks:
+  net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.2.0/24
