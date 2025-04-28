@@ -1,4 +1,4 @@
-import random
+import queue
 import socket
 import threading
 import time
@@ -6,36 +6,36 @@ import time
 DST_IP = "192.168.2.3"
 DST_PORT = 5405
 
-HOST_IP = "192.168.2.100"
-HOST_PORT = 5405
+HOST_IP = "0.0.0.0"
+HOST_PORT = 5404
 
-LOSS_RATE = 0.1
-DELAY_RATE = 0.1
-DELAY_TIME = 1
+LOSS_RATE = 0
+DELAY_RATE = 0
+DELAY_TIME = 0
+
+q = queue.Queue()
+
+
+def receiver(sock):
+    while True:
+        data, addr = sock.recvfrom(65535)
+        q.put(data)
+
+
+def sender(sock):
+    while True:
+        data = q.get()
+        sock.sendto(data, (DST_IP, DST_PORT))
 
 
 def main():
     c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     c.bind((HOST_IP, HOST_PORT))
-
-    def delay_packet(data):
-        time.sleep(DELAY_TIME)
-        c.sendto(data, (DST_IP, DST_PORT))
-        print("delay", data)
-
+    c.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 * 1024 * 1024)  # 4MB
+    threading.Thread(target=receiver, args=(c,), daemon=True).start()
+    threading.Thread(target=sender, args=(c,), daemon=True).start()
     while True:
-        data, addr = c.recvfrom(65535)
-
-        if random.random() < LOSS_RATE:
-            print("loss", data)
-            continue
-        elif random.random() < DELAY_RATE:
-            thread_ = threading.Thread(target=delay_packet, args=(data,))
-            thread_.start()
-            continue
-
-        c.sendto(data, (DST_IP, DST_PORT))
-        print("forward", data)
+        time.sleep(1)
 
 
 if __name__ == "__main__":

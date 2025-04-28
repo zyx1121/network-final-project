@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install zfec
+RUN apt-get update && apt-get install -y libgl1
+
+RUN pip install zfec opencv-python
 
 CMD ["bash"]

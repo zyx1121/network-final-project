@@ -1,3 +1,4 @@
+import math
 import socket
 import struct
 import time
@@ -19,18 +20,21 @@ class PerfectSocket:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def sendto(self, data: bytes, address):
+    def sendto(self, data: bytes, address, k: int = 4):
         """
         Send data with erasure coding to the given address.
         data: bytes to send (one batch)
         address: (ip, port)
+        k: number of data fragments (default 4)
         """
-        k = len(data)
-        n = 2 * k
-
+        n = 4 * k
         batch_id = int(time.time() * 1000) & 0xFFFFFFFF
 
-        block_size = len(data) // k
+        block_size = math.ceil(len(data) / k)
+        pad_len = block_size * k - len(data)
+        if pad_len > 0:
+            data += b"\0" * pad_len
+
         blocks = [data[i * block_size : (i + 1) * block_size] for i in range(k)]
 
         encoder = Encoder(k, n)
@@ -38,11 +42,11 @@ class PerfectSocket:
 
         for idx, fragment in enumerate(fragments):
             # +----------+--------+--------+--------+----------+
-            # | batch_id | id     | k      | n      | data     |
+            # | batch_id | id     | k      | n      | data_len |
             # +----------+--------+--------+--------+----------+
-            # | 4 bytes  | 1 byte | 1 byte | 1 byte | variable |
+            # | 4 bytes  | 1 byte | 1 byte | 1 byte | 4 bytes  |
             # +----------+--------+--------+--------+----------+
-            header = struct.pack(">IBBB", batch_id, idx, k, n)
+            header = struct.pack(">IBBBH", batch_id, idx, k, n, len(data) - pad_len)
             packet = header + fragment
             self.sock.sendto(packet, address)
 
@@ -55,9 +59,9 @@ class PerfectSocket:
             self.sock.settimeout(timeout)
         while True:
             packet, addr = self.sock.recvfrom(65535)
-            header = packet[:7]
-            batch_id, idx, k, n = struct.unpack(">IBBB", header)
-            fragment = packet[7:]
+            header = packet[:9]
+            batch_id, idx, k, n, orig_len = struct.unpack(">IBBBH", header)
+            fragment = packet[9:]
 
             if batch_id in self.processed_batches:
                 continue
@@ -73,7 +77,7 @@ class PerfectSocket:
                 fragment_datas = [batch["fragments"][i] for i in fragment_ids]
                 decoder = Decoder(batch["k"], batch["n"])
                 decoded_data = decoder.decode(fragment_datas, fragment_ids)
-                data_bytes = b"".join(decoded_data)
+                data_bytes = b"".join(decoded_data)[:orig_len]
                 self.processed_batches.add(batch_id)
                 del self.batches[batch_id]
                 return data_bytes, addr
