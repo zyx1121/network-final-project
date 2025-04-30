@@ -23,7 +23,7 @@ so the worst case is that n - k fragments are lost, and we can still decode the 
 2. split into 4 fragments, if the length of data is not divisible by 4, pad with null bytes:
 
    ```python
-   data = [b"Hell", b"o, W", b"orld", b"!\x00\x00\x00"]
+   data = [b"Hell", b"o, W", b"orld", b"!\0\0\0"]
    ```
 
 3. reed-solomon encoding with k = 4, n = 16:
@@ -38,7 +38,7 @@ so the worst case is that n - k fragments are lost, and we can still decode the 
    it will return 16 fragments, 4 of them are the original fragments, the rest are parity fragments.
 
    ```python
-   encoded = [b'Hell', b'o, W', b'orld', b'!\x00\x00\x00', b'\x82\x91\xb4\xe5', b'\xf5\x10\xc0\xb3', b'eR%\x94', b'\x833\x8e\r',     b'\xf4VR\x1f', b'\x83\x9af\xc5', b'\xf6n\x9b\xe3', b',-\x19\x13', b'R\x16\xd1\x9d', b'ml\xc5\xec', b'\x91\xf60\xb2', b'g\xb0\xf8\xeb']
+   encoded = [b"Hell", b"o, W", b"orld", b"!\0\0\0", b"\x82\x91\xb4\xe5", b"\xf5\x10\xc0\xb3", b"eR%\x94", b"\x833\x8e\r", b"\xf4VR\x1f", b"\x83\x9af\xc5", b"\xf6n\x9b\xe3", b",-\x19\x13", b"R\x16\xd1\x9d", b"ml\xc5\xec", b"\x91\xf60\xb2", b"g\xb0\xf8\xeb"]
    ```
 
 4. packet header:
