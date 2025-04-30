@@ -134,6 +134,40 @@ class PerfectSocket:
                 f"PerfectSocket: queue full, total dropped: {self._stat_send_drop}"
             )
 
+    def _pack_header(self, batch_id, idx, k, n, orig_len):
+        """
+        Pack packet header.
+        """
+        return struct.pack(
+            ">IIBBBH",
+            self._client_id,
+            batch_id,
+            idx,
+            k,
+            n,
+            orig_len,
+        )
+
+    def _send_fragment(self, packet, address, data, retry_limit):
+        """
+        Send a single fragment, retry on failure.
+        """
+        retry = 0
+        while retry <= retry_limit:
+            try:
+                self.sock.sendto(packet, address)
+                return True
+            except OSError as e:
+                retry += 1
+                if retry > retry_limit:
+                    self._stat_send_fail += 1
+                    if self._on_send_error:
+                        self._on_send_error(e, data, address)
+                    else:
+                        logging.error(f"PerfectSocket: sendto failed: {e}")
+                    return False
+                time.sleep(0.01)  # Wait before retry
+
     def _send_worker(self):
         """
         Background thread: fetch data from queue and actually send.
@@ -153,41 +187,17 @@ class PerfectSocket:
 
             # Split data into blocks
             blocks = [data[i * block_size : (i + 1) * block_size] for i in range(k)]
-
             encoder = Encoder(k, n)
             fragments = encoder.encode(blocks)
 
             send_failed = False
             for idx, fragment in enumerate(fragments):
-                retry = 0
-                while retry <= self._send_retry:
-                    try:
-                        # Packet format: client_id(4) + batch_id(4) + idx(1) + k(1) + n(1) + orig_len(2)
-                        header = struct.pack(
-                            ">IIBBBH",
-                            self._client_id,
-                            batch_id,
-                            idx,
-                            k,
-                            n,
-                            len(data) - pad_len,
-                        )
-                        packet = header + fragment
-                        self.sock.sendto(packet, address)
-                        break  # Send succeeded
-                    except OSError as e:
-                        retry += 1
-                        if retry > self._send_retry:
-                            self._stat_send_fail += 1
-                            send_failed = True
-                            if self._on_send_error:
-                                self._on_send_error(e, data, address)
-                            else:
-                                logging.error(f"PerfectSocket: sendto failed: {e}")
-                            break
-                        time.sleep(0.01)  # Wait before retry
-                if send_failed:
+                header = self._pack_header(batch_id, idx, k, n, len(data) - pad_len)
+                packet = header + fragment
+                if not self._send_fragment(packet, address, data, self._send_retry):
+                    send_failed = True
                     break
+
             if not send_failed:
                 self._stat_send_batch += 1
                 delay = time.time() - enqueue_time
