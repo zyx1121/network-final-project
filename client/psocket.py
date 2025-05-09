@@ -103,16 +103,9 @@ class PerfectSocket:
         """
         self.close(wait_queue=False)
 
-    def sendto(self, data: bytes, address, redundancy_ratio=2, mtu=1400, min_k=4):
+    def sendto(self, data: bytes, address, redundancy_ratio=4, mtu=1400, min_k=4):
         """
         Send data (asynchronously, actual sending is handled by background thread).
-
-        Args:
-            data (bytes): Data to send.
-            address (tuple): Target (host, port).
-            redundancy_ratio (int): Redundancy ratio, n = k * redundancy_ratio.
-            mtu (int): Maximum packet size.
-            min_k (int): Minimum number of fragments.
         """
         if self._closed:
             raise RuntimeError("PerfectSocket is closed, cannot sendto.")
