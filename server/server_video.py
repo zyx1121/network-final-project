@@ -1,6 +1,9 @@
+import logging
 import socket
 
 from psocket import PerfectSocket
+
+logging.basicConfig(level=logging.DEBUG)
 
 HOST_IP = "0.0.0.0"
 HOST_PORT = 5405
